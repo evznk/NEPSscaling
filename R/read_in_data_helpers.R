@@ -18,9 +18,28 @@ determine_file_path <- function(path, SC, domain, school = FALSE) {
   } else if (SC == "SC1" & domain == "CD") {
     filepath <- paste0(path, files[grep("xDirectMeasures", files)])
   } else {
-    filepath <- paste0(path, files[grep("xTargetCompetencies", files)])
+    #_______________________________Edited by RaelK____________________________
+    # Get all xTargetCompetencies files
+    tc_files <- files[grep("xTargetCompetencies", files)]
+    
+    if (length(tc_files) > 1) {
+      # Extract the numeric prefix from _D_14-0-0 or _D_15-0-0
+      versions <- as.numeric(sub(".*_D_(\\d+)-0-0.*", "\\1", tc_files))
+      
+      # Find the index of the file with the highest version number
+      latest_index <- which.max(versions)
+      latest_file <- tc_files[latest_index]
+    } else if (length(tc_files) == 1) {
+      latest_file <- tc_files[1]
+    } else {
+      stop("No xTargetCompetencies file found.")
+    }
+    
+    filepath <- paste0(path, latest_file)
+    #___________________________________________________________________________
   }
-  filepath
+  
+  return(filepath)
 }
 
 #' create appropriate error message for data import
