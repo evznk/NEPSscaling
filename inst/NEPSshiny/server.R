@@ -52,13 +52,51 @@ shinyServer(function(input, output, session) {
 
   # ------------------------------ UPLOAD STATE ------------------------------
   # previous state == pv_obj as rds
+  
+  #_______________________________Editted by RaelK______________________________
+  #To support .RData or .rdata files for uploading pv_obj as well (not just .rds)
   observe({
     req(input$import_state)
-    validate(need(tools::file_ext(input$import_state$datapath) == "rds",
-                  "pv_obj must be stored as '.rds' file."))
-
-    out <- readRDS(file = input$import_state$datapath)
-
+    filetype <- tools::file_ext(input$import_state$datapath)
+    
+    out <- switch(
+      filetype,
+      rds = readRDS(file = input$import_state$datapath),
+      sav = haven::read_spss(file = input$import_bgdata$datapath),
+      dta = haven::read_dta(file = input$import_bgdata$datapath),
+      RData = {
+        e <- new.env()
+        load(input$import_state$datapath, envir = e)
+        obj_names <- ls(e)
+        if (length(obj_names) > 1) {
+          showNotification("Multiple objects found in RData; using the first.", type = "warning")
+        }
+        e[[obj_names[1]]]
+      },
+      rdata = {
+        e <- new.env()
+        load(input$import_state$datapath, envir = e)
+        obj_names <- ls(e)
+        if (length(obj_names) > 1) {
+          showNotification("Multiple objects found in RData; using the first.", type = "warning")
+        }
+        e[[obj_names[1]]]
+      },
+      Rdata = {
+        e <- new.env()
+        load(input$import_state$datapath, envir = e)
+        obj_names <- ls(e)
+        if (length(obj_names) > 1) {
+          showNotification("Multiple objects found in RData; using the first.", type = "warning")
+        }
+        e[[obj_names[1]]]
+      },
+      {
+        showNotification(paste("Unsupported file type:", filetype), type = "error")
+        return(NULL)
+      }
+    )
+#_______________________________________________________________________________
     if (class(out) != "pv_obj") {
       showNotification("pv_obj must be of class 'pv_obj'.", type = "error")
     } else {
@@ -105,16 +143,59 @@ shinyServer(function(input, output, session) {
     req(input$import_bgdata)
     filetype <- tools::file_ext(input$import_bgdata$datapath)
 
+   # out <- switch(
+    #  filetype,
+     # rds = readRDS(file = input$import_bgdata$datapath),
+      #sav = haven::read_spss(file = input$import_bgdata$datapath),
+      #dta = haven::read_dta(file = input$import_bgdata$datapath),
+      #validate(paste0(
+       # "Format of bgdata (", filetype, ") not recognized.\n",
+        #"Needs: R object (.rds), SPSS (.sav) or Stata (.dta) format."
+      #))
+    #)
+    
+    #____________________________Editted by RaelK_______________________________
+    #To allow .RData file extentions
     out <- switch(
       filetype,
       rds = readRDS(file = input$import_bgdata$datapath),
       sav = haven::read_spss(file = input$import_bgdata$datapath),
       dta = haven::read_dta(file = input$import_bgdata$datapath),
-      validate(paste0(
-        "Format of bgdata (", filetype, ") not recognized.\n",
-        "Needs: R object (.rds), SPSS (.sav) or Stata (.dta) format."
-      ))
+      RData = {
+        e <- new.env()
+        load(input$import_bgdata$datapath, envir = e)
+        obj_names <- ls(e)
+        if (length(obj_names) > 1) {
+          showNotification("Multiple objects found in RData; using the first.", type = "warning")
+        }
+        e[[obj_names[1]]]
+      },
+      rdata = {
+        e <- new.env()
+        load(input$import_bgdata$datapath, envir = e)
+        obj_names <- ls(e)
+        if (length(obj_names) > 1) {
+          showNotification("Multiple objects found in RData; using the first.", type = "warning")
+        }
+        e[[obj_names[1]]]
+      },
+      Rdata = {
+        e <- new.env()
+        load(input$import_bgdata$datapath, envir = e)
+        obj_names <- ls(e)
+        if (length(obj_names) > 1) {
+          showNotification("Multiple objects found in RData; using the first.", type = "warning")
+        }
+        e[[obj_names[1]]]
+      },
+      {
+        validate(paste0(
+          "Format of bgdata (", filetype, ") not recognized.\n",
+          "Needs: R object (.rds), .RData, SPSS (.sav) or Stata (.dta) format."
+        ))
+      }
     )
+    
 
     if (!is.data.frame(out)) {
       showNotification("bgdata must be a data.frame.", type = "error")
@@ -232,15 +313,20 @@ shinyServer(function(input, output, session) {
     options = list(pageLength = 25)
   )
 
-  # ---------------------------- ESTIMATE PVS --------------------------------
-
   observeEvent(input$estimate_pv_obj, {
-
     req(
       values$bgdata, input$select_starting_cohort, input$select_domain,
       input$select_wave, input$path_to_data
     )
-
+    
+    message("🟢 Start Estimation button pressed.")
+    
+    # Confirm 'ID_t' exists
+    if (!"ID_t" %in% names(values$bgdata)) {
+      showNotification("❌ Background data must include 'ID_t'.", type = "error")
+      return(NULL)
+    }
+    
     exclude <- NULL
     if (isTruthy(input$longitudinal) & input$longitudinal) {
       exclude <- list(
@@ -252,66 +338,72 @@ shinyServer(function(input, output, session) {
                                longitudinal = input$longitudinal,
                                SC = paste0("SC", input$select_starting_cohort),
                                domain = input$select_domain, wave = NULL
-                             ))
+                             )
+      )
     } else if (isTruthy(input$longitudinal) & !input$longitudinal) {
       exclude <- input$exclude1
     }
-
-    # print output to shiny to monitor progress:
-    # https://stackoverflow.com/questions/30474538/possible-to-show-console-messages-written-with-message-in-a-shiny-ui/30490698#30490698
-    withCallingHandlers(
-      {
-        shinyjs::html("plausible_values_progress", "")
-        out <- NEPSscaling::plausible_values(
-          SC = as.numeric(input$select_starting_cohort),
-          domain = input$select_domain,
-          wave = as.numeric(input$select_wave),
-          path = gsub("\\\\", "/", input$path_to_data),
-          bgdata = values$bgdata,
-          npv = as.numeric(input$npv),
-          longitudinal = input$longitudinal,
-          rotation = input$rotation,
-          min_valid = as.numeric(input$min_valid),
-          include_nr = input$include_nr,
-          verbose = input$verbose,
-          adjust_school_context = input$adjust_school_context,
-          exclude = exclude,
-          seed = input$seed,
-          control = list(WLE = input$WLE, EAP = input$EAP,
-                         ML = list(nmi = input$nmi))
-        )
-      },
-      message = function(m) {
-        shinyjs::html(id = "plausible_values_progress", html = m$message)
-      }#,
-      # error = function(e) print(sys.calls())
-    )
-
-    values$pv_obj <- out
-
-    updateSelectInput(session, inputId = "imputation",
-                      choices = names(out$treeplot),
-                      selected = "")
-    updateSelectInput(session, inputId = "variable",
-                      choices = names(out$treeplot[[1]]),
-                      selected = "")
-    updateSelectInput(session, inputId = "imputation_var_imp",
-                      choices = names(out$treeplot),
-                      selected = "")
-    updateSelectInput(session, inputId = "variable_var_imp",
-                      choices = names(out$treeplot[[1]]),
-                      selected = "")
-    updateSelectInput(session, inputId = "fill",
-                      choices = unique(c(input$nominal, input$ordinal)),
-                      selected = "")
-    updateSelectInput(session, inputId = "x",
-                      choices = names(out$pv[[1]]),
-                      selected = "")
-    updateSelectInput(session, inputId = "y",
-                      choices = names(out$pv[[1]]),
-                      selected = "")
-
+    
+    shinyjs::html("plausible_values_progress", "🔍 Starting estimation...")
+    
+    tryCatch({
+      # Trigger and trace estimation
+      message("📂 Estimating PVs using path: ", input$path_to_data)
+      
+      out <- NEPSscaling::plausible_values(
+        SC = as.numeric(input$select_starting_cohort),
+        domain = input$select_domain,
+        wave = as.numeric(input$select_wave),
+        path = gsub("\\\\", "/", input$path_to_data),
+        bgdata = values$bgdata,
+        npv = as.numeric(input$npv),
+        longitudinal = input$longitudinal,
+        rotation = input$rotation,
+        min_valid = as.numeric(input$min_valid),
+        include_nr = input$include_nr,
+        verbose = TRUE,
+        adjust_school_context = input$adjust_school_context,
+        exclude = exclude,
+        seed = input$seed,
+        control = list(WLE = input$WLE, EAP = input$EAP,
+                       ML = list(nmi = input$nmi, seed=input$seed))
+      )
+      
+      if (is.null(out)) {
+        shinyjs::html("plausible_values_progress", "⚠️ Estimation returned NULL.")
+        showNotification("⚠️ No output. Something went wrong inside plausible_values().", type = "error")
+        return(NULL)
+      }
+      
+      values$pv_obj <- out
+      
+      updateSelectInput(session, inputId = "imputation",
+                        choices = names(out$treeplot), selected = "")
+      updateSelectInput(session, inputId = "variable",
+                        choices = names(out$treeplot[[1]]), selected = "")
+      updateSelectInput(session, inputId = "imputation_var_imp",
+                        choices = names(out$treeplot), selected = "")
+      updateSelectInput(session, inputId = "variable_var_imp",
+                        choices = names(out$treeplot[[1]]), selected = "")
+      updateSelectInput(session, inputId = "fill",
+                        choices = unique(c(input$nominal, input$ordinal)), selected = "")
+      updateSelectInput(session, inputId = "x",
+                        choices = names(out$pv[[1]]), selected = "")
+      updateSelectInput(session, inputId = "y",
+                        choices = names(out$pv[[1]]), selected = "")
+      
+      shinyjs::html("plausible_values_progress", "✅ Estimation completed successfully.")
+      showNotification("✅ PV estimation finished!", type = "message")
+      
+    }, error = function(e) {
+      msg <- paste("❌ Estimation error:", e$message)
+      shinyjs::html("plausible_values_progress", msg)
+      showNotification(msg, type = "error")
+      message(msg)
+    })
   })
+  
+  
 
   # ------------------------- SUMMARY OF PV_OBJ ------------------------------
 

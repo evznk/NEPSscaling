@@ -250,6 +250,7 @@ plausible_values <- function(SC,
                                  theta.model = FALSE,
                                  np.adj = 8, na.grid = 5,
                                  minbucket = 5,
+                                 seed = 1234,
                                  cp = 0.0001
                                )
                              )) {

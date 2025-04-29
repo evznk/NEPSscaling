@@ -26,6 +26,12 @@ impute_missing_data <- function(bgdata, verbose, control, nmi) {
           )
           flush.console()
         }
+        #_______________________Added by RaelK__________________________________
+        if (!is.null(control$ML$seed)) {
+          set.seed(control$ML$seed)
+        }
+        #_______________________________________________________________________
+        
         res <- CART(X = bgdata, minbucket = control$ML$minbucket,
                     cp = control$ML$cp, nmi = nmi, verbose = verbose)
         imp <- res$imp

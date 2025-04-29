@@ -65,9 +65,10 @@ shinyUI(
               inputId = "input_bgdata",
               fileInput(inputId = "import_bgdata",
                         label = tags$strong("Import background data"),
-                        multiple = FALSE, accept = c(".rds", ".sav", ".dta")),
+                        multiple = FALSE, 
+                        accept = c(".rds", ".sav", ".dta", ".RData", ".rdata", ".Rdata")),
               tags$span(style = "font-size: 0.75em;",
-                        "Upload size up to 30MB. Accepts '.rds', '.sav', and '.dta' formats."),
+                        "Upload size up to 30MB. Accepts '.rds', '.sav', '.dta' and RData formats."),
 
               hr(),
 
@@ -116,9 +117,10 @@ shinyUI(
             inputId = "input_pv_obj",
             fileInput(inputId = "import_state",
                       label = tags$strong("Import PV object"),
-                      multiple = FALSE, accept = ".rds"),
+                      multiple = FALSE,
+                      accept = c(".rds", ".sav", ".dta", ".RData", ".rdata", ".Rdata")),
             tags$span(style = "font-size: 0.75em;",
-                      "Upload size up to 30MB. Accepts '.rds' format."),
+                      "Upload size up to 30MB. Accepts '.rds', '.sav', '.dta' and RData formats."),
 
             hr(),
 
@@ -253,6 +255,14 @@ shinyUI(
             ),
             # other controls: not changeable!,
             hr(),
+            #___________________________-Added by RaelK_________________________
+            numericInput(
+              inputId = "seed",
+              label = "Set random seed (optional)",
+              value = 1234,
+              min = 1
+            ),
+            #___________________________________________________________________
             actionButton("estimate_pv_obj", label = "Start estimation")
           ),
 

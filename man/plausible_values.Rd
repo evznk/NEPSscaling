@@ -25,7 +25,7 @@ plausible_values(
   returnAll = FALSE,
   control = list(EAP = FALSE, WLE = FALSE, ML = list(ntheta = 2000, normal.approx =
     FALSE, samp.regr = FALSE, theta.model = FALSE, np.adj = 8, na.grid = 5, minbucket =
-    5, cp = 1e-04))
+    5, seed = 1234, cp = 1e-04))
 )
 }
 \arguments{
