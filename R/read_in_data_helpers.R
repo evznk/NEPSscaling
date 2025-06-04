@@ -13,64 +13,35 @@
 determine_file_path <- function(path, SC, domain, school = FALSE) {
   files <- list.files(path = path)
   
+  # Helper to get latest file version
+  get_latest_file <- function(file_list, tag) {
+    matching <- grep(tag, file_list, value = TRUE)
+    matching <- matching[grepl("_D_\\d+-0-0", matching)]  # ensure _D_ version exists
+    if (length(matching) == 0) stop("[", SC, "] No ", tag, " file found in path.")
+    versions <- as.numeric(sub(".*_D_(\\d+)-0-0.*", "\\1", matching))
+    if (anyNA(versions)) warning("[", SC, "] Some version numbers couldn't be parsed.")
+    latest_index <- which.max(versions)
+    matching[latest_index]
+  }
+  
   if (school) {
-    tc_files <- files[grep("CohortProfile", files)]
-    if (length(tc_files) > 1) {
-      versions <- as.numeric(sub(".*_D_(\\d+)-0-0.*", "\\1", tc_files))
-      latest_index <- which.max(versions)
-      selected_file <- tc_files[latest_index]
-    } else if (length(tc_files) == 1) {
-      selected_file <- tc_files[1]
-    } else {
-      stop("[", SC, "] No CohortProfile file found in path.")
-    }
+    selected_file <- get_latest_file(files, "CohortProfile")
     message("[", SC, "] Selected school identifier file: ", selected_file)
-    return(paste0(path, selected_file))
+    return(file.path(path, selected_file))
   }
   
   if (SC == "SC5" & domain == "BA") {
-    #selected_file <- files[grep("xEcoCAPI", files)]
-    tc_files <- files[grep("xEcoCAPI", files)]
-    if (length(tc_files) > 1) {
-      versions <- as.numeric(sub(".*_D_(\\d+)-0-0.*", "\\1", tc_files))
-      latest_index <- which.max(versions)
-      selected_file <- tc_files[latest_index]
-    } else if (length(tc_files) == 1) {
-      selected_file <- tc_files[1]
-    } else {
-      stop("[", SC, "] No xEcoCAPI file found in path.")
-    }
+    selected_file <- get_latest_file(files, "xEcoCAPI")
   } else if (SC == "SC1" & domain == "CD") {
-    #selected_file <- files[grep("xDirectMeasures", files)]
-    tc_files <- files[grep("xDirectMeasures", files)]
-    
-    if (length(tc_files) > 1) {
-      versions <- as.numeric(sub(".*_D_(\\d+)-0-0.*", "\\1", tc_files))
-      latest_index <- which.max(versions)
-      selected_file <- tc_files[latest_index]
-    } else if (length(tc_files) == 1) {
-      selected_file <- tc_files[1]
-    } else {
-      stop("[", SC, "] No xDirectMeasures file found in path.")
-    }
+    selected_file <- get_latest_file(files, "xDirectMeasures")
   } else {
-    tc_files <- files[grep("xTargetCompetencies", files)]
-    
-    if (length(tc_files) > 1) {
-      versions <- as.numeric(sub(".*_D_(\\d+)-0-0.*", "\\1", tc_files))
-      latest_index <- which.max(versions)
-      selected_file <- tc_files[latest_index]
-    } else if (length(tc_files) == 1) {
-      selected_file <- tc_files[1]
-    } else {
-      stop("[", SC, "] No xTargetCompetencies file found in path.")
-    }
+    selected_file <- get_latest_file(files, "xTargetCompetencies")
   }
   
   message("[", SC, "] Selected competence file: ", selected_file)
-  filepath <- paste0(path, selected_file)
-  return(filepath)
+  return(file.path(path, selected_file))
 }
+
 #_______________________________________________________________________________
 
 #' create appropriate error message for data import

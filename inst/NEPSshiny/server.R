@@ -142,17 +142,6 @@ shinyServer(function(input, output, session) {
   observeEvent(input$import_bgdata, {
     req(input$import_bgdata)
     filetype <- tools::file_ext(input$import_bgdata$datapath)
-
-   # out <- switch(
-    #  filetype,
-     # rds = readRDS(file = input$import_bgdata$datapath),
-      #sav = haven::read_spss(file = input$import_bgdata$datapath),
-      #dta = haven::read_dta(file = input$import_bgdata$datapath),
-      #validate(paste0(
-       # "Format of bgdata (", filetype, ") not recognized.\n",
-        #"Needs: R object (.rds), SPSS (.sav) or Stata (.dta) format."
-      #))
-    #)
     
     #____________________________Editted by RaelK_______________________________
     #To allow .RData file extentions
@@ -202,61 +191,40 @@ shinyServer(function(input, output, session) {
       return(NULL)
     }
 
-    updateSelectInput(session = session, inputId = "ordinal",
-                      label = "Select ordinal variables", choices = names(out))
-    updateSelectInput(session = session, inputId = "nominal",
-                      label = "Select nominal variables", choices = names(out))
-
+    # Save raw (as-is) and processed bgdata
+    #values$bgdata_raw <- haven::zap_labels(out)
+    #values$bgdata <- values$bgdata_raw  # ⬅️ No manual reclassification
+    
+    # Apply zap_labels() ONLY to haven-loaded data
+    if (filetype %in% c("sav", "dta")) {
+      out <- haven::zap_labels(out)
+    }
+    
+    # Store and use directly (no reclassification)
+    values$bgdata_raw <- out
+    values$bgdata <- out
+    
+    # Update controls for filtering and sorting
     updateSelectInput(session = session, inputId = "bgdata_select_cols",
                       label = "Select columns", choices = names(out),
                       selected = "")
     updateSelectInput(session = session, inputId = "bgdata_sort_cases",
                       label = "Sort by", choices = names(out),
                       selected = "")
-
-    values$bgdata_raw <- haven::zap_labels(out)
+    save_path <- file.path(getwd(), "bgdata_from_shiny.rds")
+    saveRDS(out, save_path)
+    
+    # Show full path in a browser notification
+    showNotification(paste0("✅ bgdata_from_shiny.rds saved at:\n", save_path), type = "message")
+    
+    # Optional: Render summary in app
+    output$bgdata_structure <- renderPrint({
+      str(out)
+    })
+    
   })
 
-  observe({
-    req(values$bgdata_raw)
-    nominal <- input$nominal
-    ordinal <- input$ordinal
-    out <- values$bgdata_raw
 
-    if (!input$metric & is.null(nominal) & is.null(ordinal)) {
-      showNotification("Please specify the scale levels of the data.",
-                       type = "message")
-      return(NULL)
-    }
-
-    if (!is.null(ordinal) | !is.null(nominal)) {
-      sel <- unique(c(ordinal, nominal))
-      if (length(sel) == 1) {
-        out[[sel]] <- as.factor(out[[sel]])
-      } else {
-        out[, sel] <- lapply(out[, sel], as.factor)
-      }
-    }
-
-    choices <- colnames(out[, -which(names(out) == "ID_t")])
-    updateSelectInput(session = session, inputId = "exclude1",
-                      label = "Variables to exclude from bg data",
-                      choices = choices, selected = "")
-    updateSelectInput(session = session, inputId = "exclude2",
-                      label = "Variables to exclude (2nd wave)",
-                      choices = choices, selected = "")
-    updateSelectInput(session = session, inputId = "exclude3",
-                      label = "Variables to exclude (3rd wave)",
-                      choices = choices, selected = "")
-    updateSelectInput(session = session, inputId = "exclude4",
-                      label = "Variables to exclude (4th wave)",
-                      choices = choices, selected = "")
-    updateSelectInput(session = session, inputId = "exclude5",
-                      label = "Variables to exclude (5th wave)",
-                      choices = choices, selected = "")
-
-    values$bgdata <- out
-  })
 
   ############################################################################
   #                            MANIPULATE
@@ -347,8 +315,9 @@ shinyServer(function(input, output, session) {
     shinyjs::html("plausible_values_progress", "🔍 Starting estimation...")
     
     tryCatch({
-      # Trigger and trace estimation
       message("📂 Estimating PVs using path: ", input$path_to_data)
+      
+      set.seed(input$seed)
       
       out <- NEPSscaling::plausible_values(
         SC = as.numeric(input$select_starting_cohort),
@@ -356,18 +325,33 @@ shinyServer(function(input, output, session) {
         wave = as.numeric(input$select_wave),
         path = gsub("\\\\", "/", input$path_to_data),
         bgdata = values$bgdata,
+        seed = input$seed,
         npv = as.numeric(input$npv),
+        ##nmi = as.numeric(input$nmi),
+        control = list(
+          ML = list(
+            nmi = 10,
+            seed = input$seed,
+            ntheta = 2000,
+            normal.approx = FALSE,
+            samp.regr = FALSE,
+            theta.model = FALSE,
+            np.adj = 8,
+            na.grid = 5,
+            minbucket = 5,
+            cp = 0.0001
+          )
+        ),
         longitudinal = input$longitudinal,
         rotation = input$rotation,
         min_valid = as.numeric(input$min_valid),
         include_nr = input$include_nr,
         verbose = TRUE,
         adjust_school_context = input$adjust_school_context,
-        exclude = exclude,
-        seed = input$seed,
-        control = list(WLE = input$WLE, EAP = input$EAP,
-                       ML = list(nmi = input$nmi, seed=input$seed))
+        exclude = exclude
       )
+      
+      
       
       if (is.null(out)) {
         shinyjs::html("plausible_values_progress", "⚠️ Estimation returned NULL.")
