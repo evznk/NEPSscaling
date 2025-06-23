@@ -1,6 +1,8 @@
 
 shinyUI(
-  navbarPage(id = "navbar",
+  navbarPage(
+    title = "NEPSshiny", #RaelK ~ Setting the browser tab title
+    id = "navbar",
    theme = bslib::bs_theme(
       bg = "#E8E6F4", fg = "black", primary = "#24195D", secondary = "#1D0E46",
       "font-size-base" = "1.5rem",
@@ -418,7 +420,7 @@ shinyUI(
         )
       )
     ),
-    title = NULL,
+    #title = "NULL",
     tabPanel(
       fluidRow(uiOutput("tab")),
       inverse = FALSE
